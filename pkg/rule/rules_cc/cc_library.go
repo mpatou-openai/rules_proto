@@ -46,6 +46,8 @@ func (s *CcLibrary) Name() string {
 
 // Srcs computes the srcs list for the rule.
 func (s *CcLibrary) Srcs() []string {
+	prefix := s.Config.Library.StripImportPrefix()
+	prefix = strings.TrimPrefix(prefix, "/")
 	srcs := make([]string, 0)
 	for _, output := range s.Outputs {
 		if strings.HasSuffix(output, ".cc") {
@@ -57,6 +59,8 @@ func (s *CcLibrary) Srcs() []string {
 
 // Hdrs computes the hdrs list for the rule.
 func (s *CcLibrary) Hdrs() []string {
+	prefix := s.Config.Library.StripImportPrefix()
+	prefix = strings.TrimPrefix(prefix, "/")
 	hdrs := make([]string, 0)
 	for _, output := range s.Outputs {
 		if strings.HasSuffix(output, ".h") {
@@ -107,9 +111,26 @@ func (s *CcLibrary) Rule(otherGen ...*rule.Rule) *rule.Rule {
 // Imports implements part of the RuleProvider interface.
 func (s *CcLibrary) Imports(c *config.Config, r *rule.Rule, file *rule.File) []resolve.ImportSpec {
 	if lib, ok := r.PrivateAttr(protoc.ProtoLibraryKey).(protoc.ProtoLibrary); ok {
-		return protoc.ProtoLibraryImportSpecsForKind(r.Kind(), lib)
+		specs := protoc.ProtoLibraryImportSpecsForKind(r.Kind(), lib)
+		specs = maybeStripImportPrefix(specs, lib.StripImportPrefix())
+
+		return specs
 	}
 	return nil
+}
+func maybeStripImportPrefix(specs []resolve.ImportSpec, stripImportPrefix string) []resolve.ImportSpec {
+	if stripImportPrefix == "" {
+		return specs
+	}
+
+	prefix := strings.TrimPrefix(stripImportPrefix, "/")
+	for i, spec := range specs {
+		spec.Imp = strings.TrimPrefix(spec.Imp, prefix)
+		spec.Imp = strings.TrimPrefix(spec.Imp, "/") // should never be absolute
+		specs[i] = spec
+	}
+
+	return specs
 }
 
 // Resolve implements part of the RuleProvider interface.
